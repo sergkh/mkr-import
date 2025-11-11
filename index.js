@@ -360,7 +360,7 @@ async function watchCommand() {
     }
   }
   
-  console.log(`Starting continuous sync mode at ${formatInterval(intervalMs)} interval\nPress Ctrl+C to stop`);
+  console.log(`Starting continuous sync mode at ${formatInterval(intervalMs)} interval`);
   
   process.on('SIGINT', () => {
     console.log('\n\n⏹  Stopping continuous sync...');
@@ -372,6 +372,8 @@ async function watchCommand() {
     shouldStop = true;
   });
   
+  await syncCommand();
+
   while (!shouldStop) {
     await new Promise(resolve => {
       let timeout;
