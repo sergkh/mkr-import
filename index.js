@@ -59,7 +59,7 @@ async function getAccessToken(oAuth2Client) {
     scope: SCOPES,
   });
   
-  console.log('\nAuthorize this app by visiting this URL:\n${authUrl}\n');
+  console.log(`\nAuthorize this app by visiting this URL:\n${authUrl}\n`);
   const code = await question('Enter the code from that page here: ');
   
   return new Promise((resolve, reject) => {
@@ -291,6 +291,111 @@ async function syncCommand() {
   }
 }
 
+// Parse interval string to milliseconds
+// Supports: "1h", "30m", "1h30m", "3600000" (ms), etc.
+function parseInterval(intervalStr) {
+  if (!intervalStr) return 3600000; // Default 1 hour
+  
+  // If it's just a number, treat as milliseconds
+  const numOnly = parseInt(intervalStr, 10);
+  if (!isNaN(numOnly) && intervalStr === numOnly.toString()) {
+    return numOnly;
+  }
+  
+  // Parse time units
+  let totalMs = 0;
+  const regex = /(\d+)([hms])/gi;
+  let match;
+  
+  while ((match = regex.exec(intervalStr)) !== null) {
+    const value = parseInt(match[1], 10);
+    const unit = match[2].toLowerCase();
+    
+    switch (unit) {
+      case 'h':
+        totalMs += value * 60 * 60 * 1000;
+        break;
+      case 'm':
+        totalMs += value * 60 * 1000;
+        break;
+      case 's':
+        totalMs += value * 1000;
+        break;
+    }
+  }
+  
+  if (totalMs === 0) {
+    throw new Error(`Invalid interval format: ${intervalStr}. Use format like "1h", "30m", "1h30m", or milliseconds.`);
+  }
+  
+  return totalMs;
+}
+
+// Format milliseconds to human-readable string
+function formatInterval(ms) {
+  const hours = Math.floor(ms / (60 * 60 * 1000));
+  const minutes = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+  const seconds = Math.floor((ms % (60 * 1000)) / 1000);
+  
+  const parts = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (seconds > 0 && hours === 0) parts.push(`${seconds}s`);
+  
+  return parts.join('') || `${ms}ms`;
+}
+
+// Watch command - sync continuously
+async function watchCommand() {
+  let intervalMs = 3600000; // Default 1 hour
+  let shouldStop = false;
+  
+  const intervalIndex = process.argv.indexOf('--interval');
+  if (intervalIndex !== -1 && process.argv[intervalIndex + 1]) {
+    try {
+      intervalMs = parseInterval(process.argv[intervalIndex + 1]);
+    } catch (err) {
+      console.error(err.message);
+      process.exit(1);
+    }
+  }
+  
+  console.log(`Starting continuous sync mode at ${formatInterval(intervalMs)} interval\nPress Ctrl+C to stop`);
+  
+  process.on('SIGINT', () => {
+    console.log('\n\n⏹  Stopping continuous sync...');
+    shouldStop = true;
+  });
+  
+  process.on('SIGTERM', () => {
+    console.log('\n\n⏹  Stopping continuous sync...');
+    shouldStop = true;
+  });
+  
+  while (!shouldStop) {
+    await new Promise(resolve => {
+      let timeout;
+      let checkInterval;
+      
+      timeout = setTimeout(() => {
+        clearInterval(checkInterval);
+        resolve();
+      }, intervalMs);
+      
+      // Check if we should stop periodically
+      checkInterval = setInterval(() => {
+        if (shouldStop) {
+          clearTimeout(timeout);
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 1000);
+    });
+    
+    if (!shouldStop) await syncCommand();
+  }
+}
+
 // Main entry point
 const command = process.argv[2] || 'sync';
 
@@ -301,10 +406,17 @@ switch (command) {
     return removeCommand();
   case 'sync':
     return syncCommand();
+  case 'watch':
+    return watchCommand();
   default:
-    console.log('Usage: node index.js [create|remove|sync]');
+    console.log('Usage: node index.js [create|remove|sync|watch]');
     console.log('  create - Add a new user');
     console.log('  remove - Remove a user');
-    console.log('  sync   - Sync all users (default)');
+    console.log('  sync   - Sync all users once (default)');
+    console.log('  watch  - Sync continuously at intervals');
+    console.log('');
+    console.log('Watch options:');
+    console.log('  --interval <time>  Sync interval (default: 1h)');
+    console.log('                     Examples: "1h", "30m", "1h30m", "3600000" (ms)');
     process.exit(1);
 }
