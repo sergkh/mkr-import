@@ -1,0 +1,16 @@
+{
+  "name": "mkr-import",
+  "version": "1.0.0",
+  "description": "Imports MKR events into your calendar",
+  "main": "index.js",
+  "author": "sergey.khruschak@gmail.com",
+  "license": "MIT",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "googleapis": "^158.0.0",
+    "moment": "^2.30.1",
+    "readline": "^1.3.0"
+  }
+}
