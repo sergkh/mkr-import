@@ -3,6 +3,10 @@ node_modules/
 yarn-error.log
 package-lock.json
 
+# Rust build artifacts
+target/
+Cargo.lock
+
 # OAuth tokens and credentials (sensitive)
 config/
 
